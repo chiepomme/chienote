@@ -23,7 +23,7 @@ const PublicResourcePath = "public/resource/"
 const PublicPath = "public/"
 
 // NotesPerPage indicates how many articles on one page
-const NotesPerPage = 1
+const NotesPerPage = 5
 
 // Config is a configuration for chienote
 type Config struct {
