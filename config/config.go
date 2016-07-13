@@ -13,6 +13,15 @@ const NoteCachePath = "cache/note/"
 // ResourceCachePath is a directory path for resource cache
 const ResourceCachePath = "cache/resource/"
 
+// PublicArticlePath is a directory path for public articles
+const PublicArticlePath = "public/article/"
+
+// PublicResourcePath is a directory path for public resources
+const PublicResourcePath = "public/resource/"
+
+// PublicPath is a public directory path
+const PublicPath = "public/"
+
 // Config is a configuration for chienote
 type Config struct {
 	ClientKey      string `json:"client_key"`

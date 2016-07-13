@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -65,7 +66,16 @@ func Convert() {
 			fis, _ := ioutil.ReadDir(config.ResourceCachePath)
 			for _, fi := range fis {
 				if strings.HasPrefix(fi.Name(), hash) {
-					selection.ReplaceWithHtml(`<img src="` + config.ResourceCachePath + fi.Name() + `" />`)
+					lowerName := strings.ToLower(fi.Name())
+					relativeResourcePath := "../" + strings.Replace(config.PublicResourcePath, config.PublicPath, "", 1)
+					if strings.HasSuffix(lowerName, ".png") || strings.HasSuffix(lowerName, ".jpeg") {
+						selection.ReplaceWithHtml(`<img src="` + relativeResourcePath + fi.Name() + `" />`)
+
+					} else if strings.HasSuffix(lowerName, ".mp3") {
+						selection.ReplaceWithHtml(`<audio src="` + relativeResourcePath + fi.Name() + `" />`)
+					} else {
+						selection.ReplaceWithHtml(`<a href="` + relativeResourcePath + fi.Name() + `">` + strings.Split(fi.Name(), "-")[1] + "</a>")
+					}
 					break
 				}
 			}
@@ -100,13 +110,40 @@ func Convert() {
 			url = *cachedNote.Title
 		}
 
-		os.MkdirAll("article", os.ModePerm)
-		file, err := os.OpenFile("article/"+url+".html", os.O_CREATE, os.ModePerm)
+		os.MkdirAll(config.PublicArticlePath, os.ModePerm)
+		file, err := os.OpenFile(config.PublicArticlePath+url+".html", os.O_CREATE, os.ModePerm)
 		defer file.Close()
 		templateErr := htmlTmpl.ExecuteTemplate(file, "home", note)
 		if templateErr != nil {
 			fmt.Println("tempalte file error")
 			fmt.Println(templateErr)
+		}
+
+		os.RemoveAll(config.PublicResourcePath)
+		os.MkdirAll(config.PublicResourcePath, os.ModePerm)
+
+		resourceInfos, err := ioutil.ReadDir(config.ResourceCachePath)
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		for _, resourceInfo := range resourceInfos {
+			sourcePath := config.ResourceCachePath + resourceInfo.Name()
+			source, err := os.OpenFile(sourcePath, os.O_RDONLY, os.ModePerm)
+			if err != nil {
+				fmt.Println(err)
+			}
+
+			destPath := config.PublicResourcePath + resourceInfo.Name()
+			dest, err := os.OpenFile(destPath, os.O_CREATE, os.ModePerm)
+			if err != nil {
+				fmt.Println(err)
+			}
+
+			_, copyErr := io.Copy(dest, source)
+			if copyErr != nil {
+				fmt.Println(copyErr)
+			}
 		}
 	}
 }
