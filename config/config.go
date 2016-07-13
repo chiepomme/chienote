@@ -22,6 +22,9 @@ const PublicResourcePath = "public/resource/"
 // PublicPath is a public directory path
 const PublicPath = "public/"
 
+// NotesPerPage indicates how many articles on one page
+const NotesPerPage = 1
+
 // Config is a configuration for chienote
 type Config struct {
 	ClientKey      string `json:"client_key"`

@@ -8,6 +8,8 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
@@ -15,6 +17,15 @@ import (
 	"github.com/dreampuf/evernote-sdk-golang/types"
 	"github.com/yosssi/gohtml"
 )
+
+type pageForTemplate struct {
+	HasPrevious bool
+	PreviousURL string
+	PageNumber  int
+	HasNext     bool
+	NextURL     string
+	Notes       []noteForTemplate
+}
 
 type noteForTemplate struct {
 	GUID              *types.GUID
@@ -33,6 +44,21 @@ type noteForTemplate struct {
 	Resources         []*types.Resource
 	Attributes        *types.NoteAttributes
 	TagNames          []string
+	RelativeURL       string
+}
+
+type noteList []noteForTemplate
+
+func (notes noteList) Len() int {
+	return len(notes)
+}
+
+func (notes noteList) Less(i, j int) bool {
+	return *notes[i].Created < *notes[i].Created
+}
+
+func (notes noteList) Swap(i, j int) {
+	notes[i], notes[j] = notes[j], notes[i]
 }
 
 // Convert local cache to static files
@@ -43,6 +69,11 @@ func Convert() {
 	if err != nil {
 		fmt.Println(err)
 	}
+
+	os.RemoveAll(config.PublicResourcePath)
+	os.MkdirAll(config.PublicArticlePath, os.ModePerm)
+
+	var notes noteList
 
 	for _, fileinfo := range fileinfos {
 		cachedNote := &types.Note{}
@@ -55,7 +86,7 @@ func Convert() {
 		if jsonErr != nil {
 			fmt.Println(jsonErr)
 		}
-		htmlTmpl, _ := template.ParseFiles("template/home.html")
+		htmlTmpl, _ := template.ParseFiles("template/note.html")
 		str := *cachedNote.Content
 		reader := bytes.NewReader([]byte(str))
 		doc, _ := goquery.NewDocumentFromReader(reader)
@@ -67,7 +98,7 @@ func Convert() {
 			for _, fi := range fis {
 				if strings.HasPrefix(fi.Name(), hash) {
 					lowerName := strings.ToLower(fi.Name())
-					relativeResourcePath := "../" + strings.Replace(config.PublicResourcePath, config.PublicPath, "", 1)
+					relativeResourcePath := "/" + strings.Replace(config.PublicResourcePath, config.PublicPath, "", 1)
 					if strings.HasSuffix(lowerName, ".png") || strings.HasSuffix(lowerName, ".jpeg") {
 						selection.ReplaceWithHtml(`<img src="` + relativeResourcePath + fi.Name() + `" />`)
 
@@ -110,10 +141,13 @@ func Convert() {
 			url = *cachedNote.Title
 		}
 
-		os.MkdirAll(config.PublicArticlePath, os.ModePerm)
-		file, err := os.OpenFile(config.PublicArticlePath+url+".html", os.O_CREATE, os.ModePerm)
+		notePath := config.PublicArticlePath + url + ".html"
+		note.RelativeURL = strings.Replace(config.PublicArticlePath, config.PublicPath, "", 1) + url + ".html"
+		notes = append(notes, note)
+
+		file, err := os.OpenFile(notePath, os.O_CREATE, os.ModePerm)
 		defer file.Close()
-		templateErr := htmlTmpl.ExecuteTemplate(file, "home", note)
+		templateErr := htmlTmpl.ExecuteTemplate(file, "note", note)
 		if templateErr != nil {
 			fmt.Println("tempalte file error")
 			fmt.Println(templateErr)
@@ -144,6 +178,57 @@ func Convert() {
 			if copyErr != nil {
 				fmt.Println(copyErr)
 			}
+		}
+	}
+
+	sort.Sort(notes)
+
+	for pageIdx := 0; pageIdx*config.NotesPerPage < len(notes); pageIdx++ {
+		page := pageForTemplate{
+			HasPrevious: pageIdx > 0,
+			HasNext:     (pageIdx+1)*config.NotesPerPage < len(notes),
+			PageNumber:  pageIdx + 1,
+		}
+
+		if page.HasPrevious {
+			if page.PageNumber == 2 {
+				page.PreviousURL = ""
+			} else {
+				page.PreviousURL = strconv.Itoa(page.PageNumber-1) + ".html"
+			}
+		}
+
+		if page.HasNext {
+			page.NextURL = strconv.Itoa(page.PageNumber+1) + ".html"
+		}
+
+		initialNoteIndexOnPage := pageIdx * config.NotesPerPage
+		finalNoteIndexOnPage := (pageIdx + 1*config.NotesPerPage)
+		if finalNoteIndexOnPage > len(notes) {
+			finalNoteIndexOnPage = len(notes)
+		}
+
+		for _, note := range notes[initialNoteIndexOnPage:finalNoteIndexOnPage] {
+			page.Notes = append(page.Notes, note)
+		}
+
+		htmlTmpl, _ := template.ParseFiles("template/home.html")
+		pagePath := config.PublicPath
+		if page.PageNumber == 1 {
+			pagePath += "index.html"
+		} else {
+			pagePath += strconv.Itoa(page.PageNumber) + ".html"
+		}
+		file, err := os.OpenFile(pagePath, os.O_CREATE, os.ModePerm)
+		if err != nil {
+			fmt.Println(err)
+		}
+		defer file.Close()
+
+		templateErr := htmlTmpl.ExecuteTemplate(file, "home", page)
+		if templateErr != nil {
+			fmt.Println("tempalte file error")
+			fmt.Println(templateErr)
 		}
 	}
 }
