@@ -34,6 +34,7 @@ type Config struct {
 	ClientSecret   string `json:"client_secret"`
 	DeveloperToken string `json:"developer_token"`
 	Sandbox        bool   `json:"is_sandbox"`
+	NotebookName   string `json:"notebook_name"`
 }
 
 var config Config

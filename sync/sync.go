@@ -79,16 +79,26 @@ func Sync() {
 		fmt.Println(err)
 	}
 
-	notebook, err := ns.GetDefaultNotebook(cfg.DeveloperToken)
+	notebooks, err := ns.ListNotebooks(cfg.DeveloperToken)
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
-	if notebook == nil {
-		fmt.Println("invalid note")
+
+	var notebookGUID *types.GUID
+	for _, book := range notebooks {
+		if *book.Name == cfg.NotebookName {
+			notebookGUID = book.GUID
+			break
+		}
+	}
+	if notebookGUID == nil {
+		fmt.Println("can't find notebook (name: " + cfg.NotebookName + ")")
+		return
 	}
 
 	ascending := false
-	filter := &notestore.NoteFilter{NotebookGuid: notebook.GUID, Ascending: &ascending}
+	filter := &notestore.NoteFilter{NotebookGuid: notebookGUID, Ascending: &ascending}
 	notes, err := ns.FindNotes(cfg.DeveloperToken, filter, 0, 100)
 
 	existingIds := mapset.NewSet()
