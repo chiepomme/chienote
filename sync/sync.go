@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/chiepomme/chienote/config"
 	"github.com/deckarep/golang-set"
@@ -24,6 +25,29 @@ func Sync() {
 		fmt.Println("failed to load config.json: " + err.Error())
 		return
 	}
+
+	cacheDirStat, err := os.Stat(config.CachePath)
+	if err != nil {
+		if err := os.MkdirAll(config.CachePath, os.ModePerm); err != nil {
+			fmt.Println("failed to create cache directory:" + err.Error())
+			return
+		}
+	} else {
+		lastModified := cacheDirStat.ModTime()
+		now := time.Now().Local()
+		if now.Sub(lastModified).Minutes() < 20 {
+			fmt.Println("you should wait at least 20 mins from last update")
+			return
+		}
+
+		if err := os.Chtimes(config.CachePath, now, now); err != nil {
+			fmt.Println("failed to update cache directory's modified date:" + err.Error())
+			return
+		}
+	}
+
+	os.MkdirAll(config.NoteCachePath, os.ModePerm)
+	os.MkdirAll(config.ResourceCachePath, os.ModePerm)
 
 	c := client.NewClient(cfg.ClientKey, cfg.ClientSecret, cfg.GetEnvironment())
 	us, err := c.GetUserStore()
@@ -66,9 +90,6 @@ func Sync() {
 	ascending := false
 	filter := &notestore.NoteFilter{NotebookGuid: notebook.GUID, Ascending: &ascending}
 	notes, err := ns.FindNotes(cfg.DeveloperToken, filter, 0, 100)
-
-	os.MkdirAll(config.NoteCachePath, os.ModePerm)
-	os.MkdirAll(config.ResourceCachePath, os.ModePerm)
 
 	existingIds := mapset.NewSet()
 	fileInfos, err := ioutil.ReadDir(config.NoteCachePath)

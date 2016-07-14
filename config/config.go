@@ -7,6 +7,9 @@ import (
 	"github.com/dreampuf/evernote-sdk-golang/client"
 )
 
+// CachePath is a directory path for caches
+const CachePath = "cache/note/"
+
 // NoteCachePath is a directory path for note cache
 const NoteCachePath = "cache/note/"
 
