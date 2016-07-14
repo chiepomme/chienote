@@ -28,6 +28,9 @@ const PublicPath = "public/"
 // NotesPerPage indicates how many articles on one page
 const NotesPerPage = 5
 
+// ConfigFilePath indicates where the configuration file is.
+const ConfigFilePath = "config.json"
+
 // Config is a configuration for chienote
 type Config struct {
 	ClientKey      string `json:"client_key"`
@@ -42,7 +45,7 @@ var config Config
 // GetConfig loads configuration file "config.json"
 func GetConfig() (*Config, error) {
 	if config.ClientKey == "" {
-		configBytes, err := ioutil.ReadFile("config.json")
+		configBytes, err := ioutil.ReadFile(ConfigFilePath)
 		if err != nil {
 			return nil, err
 		}

@@ -2,12 +2,22 @@ package main
 
 import (
 	"github.com/chiepomme/chienote/convert"
+	"github.com/chiepomme/chienote/initialize"
 	"github.com/chiepomme/chienote/sync"
 
 	"github.com/spf13/cobra"
 )
 
 func main() {
+
+	var cmdInit = &cobra.Command{
+		Use:   "init",
+		Short: "Initialize chienote environment",
+		Long:  `Initialize chienote environment`,
+		Run: func(cmd *cobra.Command, args []string) {
+			initialize.Initialize()
+		},
+	}
 
 	var cmdSync = &cobra.Command{
 		Use:   "sync",
@@ -28,6 +38,6 @@ func main() {
 	}
 
 	var rootCmd = &cobra.Command{Use: "chienote"}
-	rootCmd.AddCommand(cmdSync, cmdConvert)
+	rootCmd.AddCommand(cmdInit, cmdSync, cmdConvert)
 	rootCmd.Execute()
 }
