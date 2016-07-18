@@ -173,6 +173,21 @@ func replaceEvernoteTags(enml *string, resourceFiles *[]os.FileInfo, jekyllResou
 		codeClose.Remove()
 	}
 
+	doc.Find(`div:contains("#")`).Each(func(_ int, div *goquery.Selection) {
+		line := div.Text()
+		if strings.HasPrefix(line, "##### ") {
+			div.ReplaceWithHtml("<h5>" + strings.Replace(line, "##### ", "", 1))
+		} else if strings.HasPrefix(line, "#### ") {
+			div.ReplaceWithHtml("<h4>" + strings.Replace(line, "#### ", "", 1))
+		} else if strings.HasPrefix(line, "## ") {
+			div.ReplaceWithHtml("<h3>" + strings.Replace(line, "### ", "", 1))
+		} else if strings.HasPrefix(line, "## ") {
+			div.ReplaceWithHtml("<h2>" + strings.Replace(line, "## ", "", 1))
+		} else if strings.HasPrefix(line, "# ") {
+			div.ReplaceWithHtml("<h1>" + strings.Replace(line, "# ", "", 1))
+		}
+	})
+
 	doc.Find("en-media").Each(func(i int, selection *goquery.Selection) {
 		hash, _ := selection.Attr("hash")
 		found := false
