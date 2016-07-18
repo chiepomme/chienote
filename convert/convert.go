@@ -179,7 +179,7 @@ func replaceEvernoteTags(enml *string, resourceFiles *[]os.FileInfo, jekyllResou
 			div.ReplaceWithHtml("<h5>" + strings.Replace(line, "##### ", "", 1))
 		} else if strings.HasPrefix(line, "#### ") {
 			div.ReplaceWithHtml("<h4>" + strings.Replace(line, "#### ", "", 1))
-		} else if strings.HasPrefix(line, "## ") {
+		} else if strings.HasPrefix(line, "### ") {
 			div.ReplaceWithHtml("<h3>" + strings.Replace(line, "### ", "", 1))
 		} else if strings.HasPrefix(line, "## ") {
 			div.ReplaceWithHtml("<h2>" + strings.Replace(line, "## ", "", 1))
