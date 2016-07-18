@@ -86,6 +86,12 @@ func Sync(cacheRoot string, noteCacheDirName string, resourceCacheDirName string
 				return errors.Wrapf(err, "can't get note %v", *note.GUID)
 			}
 
+			tags, err := ns.GetNoteTagNames(developerToken, *note.GUID)
+			if err != nil {
+				return errors.Wrapf(err, "can't get note tags %v", *note.GUID)
+			}
+			note.TagNames = tags
+
 			fmt.Printf("downloaded %v[%v]\n", *note.Title, *note.GUID)
 
 			writeCachedNoteToFile(&noteCachePath, note)
