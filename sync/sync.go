@@ -263,7 +263,7 @@ func saveResources(resourceCacheDir *string, cachedNote *types.Note, receivedNot
 		}
 
 		if fetchingNeeded {
-			resourceWithBytes, err := ns.GetResource(*developerToken, *resource.GUID, true, true, true, false)
+			resourceWithBytes, err := ns.GetResource(*developerToken, *resource.GUID, true, false, true, false)
 			if err != nil {
 				return errors.Wrapf(err, "can't get resource %v", *resource.Attributes.FileName)
 			}
