@@ -1,7 +1,6 @@
 package sync
 
 import (
-	"bytes"
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
@@ -80,7 +79,7 @@ func Sync(cacheRoot string, noteCacheDirName string, resourceCacheDirName string
 			return errors.Wrapf(err, "can't read cached note")
 		}
 
-		if cachedNote == nil || cachedNote.Updated != note.Updated {
+		if cachedNote == nil || *cachedNote.UpdateSequenceNum != *note.UpdateSequenceNum {
 			note, err := ns.GetNote(developerToken, note.GUID, true, false, false, false)
 			if err != nil {
 				return errors.Wrapf(err, "can't get note %v", *note.GUID)
@@ -243,18 +242,19 @@ func writeCachedNoteToFile(cachePath *string, note *types.Note) error {
 }
 
 func saveResources(resourceCacheDir *string, cachedNote *types.Note, receivedNote *types.Note, ns *notestore.NoteStoreClient, developerToken *string) error {
-	localResourceMap := map[types.GUID][]byte{}
+	localResourceMap := map[types.GUID]int32{}
 	if cachedNote != nil {
 		for _, cachedResource := range cachedNote.Resources {
-			localResourceMap[*cachedResource.GUID] = cachedResource.Data.BodyHash
+			localResourceMap[*cachedResource.GUID] = *cachedResource.UpdateSequenceNum
 		}
 	}
 
 	for _, resource := range receivedNote.Resources {
 		fetchingNeeded := false
-		cachedHash, exists := localResourceMap[*resource.GUID]
+		cachedUpdateNum, exists := localResourceMap[*resource.GUID]
 		if exists {
-			if !bytes.Equal(cachedHash, resource.Data.BodyHash) {
+
+			if cachedUpdateNum != *resource.UpdateSequenceNum {
 				fetchingNeeded = true
 			}
 			delete(localResourceMap, *resource.GUID)
