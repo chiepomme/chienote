@@ -17,7 +17,7 @@ func main() {
 		Short: "Initialize your configuration file",
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := initialize(); err != nil {
-				fmt.Println(err)
+				fmt.Printf("%+v\n", err)
 				os.Exit(-1)
 			}
 		},
@@ -29,7 +29,7 @@ func main() {
 		Run: func(cmd *cobra.Command, args []string) {
 			cfg := loadConfig()
 			if err := sync.Sync(cacheRoot, noteCacheDirName, resourceCacheDirName, cfg.ClientKey, cfg.ClientSecret, cfg.DeveloperToken, cfg.Sandbox, cfg.NotebookName); err != nil {
-				fmt.Println(err)
+				fmt.Printf("%+v\n", err)
 				os.Exit(-1)
 			}
 		},
@@ -41,7 +41,7 @@ func main() {
 		Run: func(cmd *cobra.Command, args []string) {
 			loadConfig()
 			if err := convert.Convert(cacheRoot, noteCacheDirName, resourceCacheDirName, ".", postDirName, resourceDirName, true); err != nil {
-				fmt.Println(err)
+				fmt.Printf("%+v\n", err)
 				os.Exit(-1)
 			}
 		},
@@ -57,7 +57,7 @@ func loadConfig() *config {
 	if err != nil {
 		fmt.Println("configuration file load error")
 		fmt.Println("it is recommended to execute init command")
-		fmt.Println(err)
+		fmt.Printf("%+v", err)
 		os.Exit(-1)
 	}
 	return cfg
