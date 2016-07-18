@@ -203,7 +203,7 @@ func replaceEvernoteTags(enml *string, resourceFiles *[]os.FileInfo, jekyllResou
 			if strings.HasSuffix(lowerName, ".png") || strings.HasSuffix(lowerName, ".jpg") || strings.HasSuffix(lowerName, ".gif") {
 				selection.ReplaceWithHtml(fmt.Sprintf(`<img src="%v" />`, url))
 			} else if strings.HasSuffix(lowerName, ".mp3") {
-				selection.ReplaceWithHtml(fmt.Sprintf(`<audio src="%v" />`, url))
+				selection.ReplaceWithHtml(fmt.Sprintf(`<audio src="%v" controls="true"/>`, url))
 			} else if strings.HasSuffix(lowerName, ".mp4") {
 				selection.ReplaceWithHtml(fmt.Sprintf(`<video src="%v" />`, url))
 			} else {
