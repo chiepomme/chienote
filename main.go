@@ -1,43 +1,64 @@
 package main
 
 import (
-	"github.com/chiepomme/chienote/convert"
-	"github.com/chiepomme/chienote/initialize"
-	"github.com/chiepomme/chienote/sync"
+	"fmt"
+	"os"
 
+	"github.com/chiepomme/chienote/convert"
+	"github.com/chiepomme/chienote/sync"
 	"github.com/spf13/cobra"
 )
 
-func main() {
+var cfg *config
 
+func main() {
 	var cmdInit = &cobra.Command{
 		Use:   "init",
-		Short: "Initialize chienote environment",
-		Long:  `Initialize chienote environment`,
+		Short: "Initialize your configuration file",
 		Run: func(cmd *cobra.Command, args []string) {
-			initialize.Initialize()
+			if err := initialize(); err != nil {
+				fmt.Println(err)
+				os.Exit(-1)
+			}
 		},
 	}
 
 	var cmdSync = &cobra.Command{
 		Use:   "sync",
 		Short: "Sync local cache and evernote notes",
-		Long:  `Sync local cache and evernote notes`,
 		Run: func(cmd *cobra.Command, args []string) {
-			sync.Sync()
+			cfg := loadConfig()
+			if err := sync.Sync(cacheRoot, noteCacheDirName, resourceCacheDirName, cfg.ClientKey, cfg.ClientSecret, cfg.DeveloperToken, cfg.Sandbox, cfg.NotebookName); err != nil {
+				fmt.Println(err)
+				os.Exit(-1)
+			}
 		},
 	}
 
 	var cmdConvert = &cobra.Command{
 		Use:   "convert",
-		Short: "Convert local cache to static files",
-		Long:  `Convert local cache to static files`,
+		Short: "Convert local cache to post files",
 		Run: func(cmd *cobra.Command, args []string) {
-			convert.Convert()
+			loadConfig()
+			if err := convert.Convert(cacheRoot, noteCacheDirName, resourceCacheDirName, ".", postDirName, resourceDirName, true); err != nil {
+				fmt.Println(err)
+				os.Exit(-1)
+			}
 		},
 	}
 
-	var rootCmd = &cobra.Command{Use: "chienote"}
+	var rootCmd = &cobra.Command{Use: "chienote", Long: "Sync your evernote notebook to your jekyll directory. Execute chienote at your jekyll root."}
 	rootCmd.AddCommand(cmdInit, cmdSync, cmdConvert)
 	rootCmd.Execute()
+}
+
+func loadConfig() *config {
+	cfg, err := getConfig()
+	if err != nil {
+		fmt.Println("configuration file load error")
+		fmt.Println("it is recommended to execute init command")
+		fmt.Println(err)
+		os.Exit(-1)
+	}
+	return cfg
 }

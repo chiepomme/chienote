@@ -24,9 +24,6 @@ _testmain.go
 *.prof
 
 
-# chienote's ones
-/config.json
+# application domestic
 /debug
 .vscode/
-/cache/
-/public/

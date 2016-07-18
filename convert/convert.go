@@ -2,233 +2,201 @@ package convert
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
-	"html/template"
 	"io"
 	"io/ioutil"
 	"os"
-	"sort"
-	"strconv"
+	"path"
 	"strings"
+	"time"
+
+	"gopkg.in/yaml.v2"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/chiepomme/chienote/config"
 	"github.com/dreampuf/evernote-sdk-golang/types"
+	"github.com/pkg/errors"
 	"github.com/yosssi/gohtml"
 )
 
-type pageForTemplate struct {
-	HasPrevious bool
-	PreviousURL string
-	PageNumber  int
-	HasNext     bool
-	NextURL     string
-	Notes       []noteForTemplate
+type frontMatter struct {
+	Title     string   `yaml:"title,omitempty"`
+	Layout    string   `yaml:"layout,omitempty"`
+	Published bool     `yaml:"published"`
+	Date      string   `yaml:"date,omitempty"`
+	Tags      []string `yaml:"tags,omitempty"`
 }
 
-type noteForTemplate struct {
-	GUID              *types.GUID
-	Title             *string
-	Content           *string
-	RawContent        template.HTML
-	ContentHash       []byte
-	ContentLength     *int32
-	Created           *types.Timestamp
-	Updated           *types.Timestamp
-	Deleted           *types.Timestamp
-	Active            *bool
-	UpdateSequenceNum *int32
-	NotebookGuid      *string
-	TagGuids          []string
-	Resources         []*types.Resource
-	Attributes        *types.NoteAttributes
-	TagNames          []string
-	RelativeURL       string
-}
-
-type noteList []noteForTemplate
-
-func (notes noteList) Len() int {
-	return len(notes)
-}
-
-func (notes noteList) Less(i, j int) bool {
-	return *notes[i].Created < *notes[i].Created
-}
-
-func (notes noteList) Swap(i, j int) {
-	notes[i], notes[j] = notes[j], notes[i]
-}
+const cacheExtension = ".yml"
 
 // Convert local cache to static files
-func Convert() {
-	os.Remove("index.html")
+func Convert(cacheRoot string, noteCacheDirName string, resourceCacheDirName string, jekyllRoot string, postsDirName string, resourcesDirName string, cleanNeeded bool) error {
+	jekyllPostsDir := path.Join(jekyllRoot, postsDirName)
+	jekyllResourcesDir := path.Join(jekyllRoot, resourcesDirName)
+	noteCacheDir := path.Join(cacheRoot, noteCacheDirName)
+	resourceCacheDir := path.Join(cacheRoot, resourceCacheDirName)
 
-	fileinfos, err := ioutil.ReadDir(config.NoteCachePath)
+	notefiles, err := ioutil.ReadDir(noteCacheDir)
 	if err != nil {
-		fmt.Println(err)
+		return errors.Wrapf(err, "can't get cached notes", noteCacheDir)
 	}
 
-	os.RemoveAll(config.PublicResourcePath)
-	os.MkdirAll(config.PublicArticlePath, os.ModePerm)
+	resourceFiles, err := ioutil.ReadDir(resourceCacheDir)
+	if err != nil {
+		return errors.Wrapf(err, "can't get cached resources %v", resourceCacheDir)
+	}
 
-	var notes noteList
+	createDestinations(cleanNeeded, &jekyllPostsDir, &jekyllResourcesDir)
 
-	for _, fileinfo := range fileinfos {
+	for _, notefile := range notefiles {
 		cachedNote := &types.Note{}
-		jsonBytes, err := ioutil.ReadFile(config.NoteCachePath + fileinfo.Name())
+		cachedNotePath := path.Join(noteCacheDir, notefile.Name())
+		yamlBytes, err := ioutil.ReadFile(cachedNotePath)
 		if err != nil {
-			fmt.Println(err)
+			return errors.Wrapf(err, "can't read cached note file %v", cachedNotePath)
+		}
+		if err := yaml.Unmarshal(yamlBytes, cachedNote); err != nil {
+			return errors.Wrapf(err, "can't unmarshal cached note file %v", cachedNotePath)
 		}
 
-		jsonErr := json.Unmarshal(jsonBytes, cachedNote)
-		if jsonErr != nil {
-			fmt.Println(jsonErr)
-		}
-		htmlTmpl, _ := template.ParseFiles("template/note.html")
-		str := *cachedNote.Content
-		reader := bytes.NewReader([]byte(str))
-		doc, _ := goquery.NewDocumentFromReader(reader)
-		doc.Find("en-todo[checked='true']").ReplaceWithHtml(`<input type="checkbox" checked="true" />`)
-		doc.Find("en-todo").ReplaceWithHtml(`<input type="checkbox" />`)
-		doc.Find("en-media").Each(func(i int, selection *goquery.Selection) {
-			hash, _ := selection.Attr("hash")
-			fis, _ := ioutil.ReadDir(config.ResourceCachePath)
-			for _, fi := range fis {
-				if strings.HasPrefix(fi.Name(), hash) {
-					lowerName := strings.ToLower(fi.Name())
-					relativeResourcePath := "/" + strings.Replace(config.PublicResourcePath, config.PublicPath, "", 1)
-					if strings.HasSuffix(lowerName, ".png") || strings.HasSuffix(lowerName, ".jpeg") {
-						selection.ReplaceWithHtml(`<img src="` + relativeResourcePath + fi.Name() + `" />`)
+		created := time.Unix(int64(*cachedNote.Created)/1000, 0)
+		created = created.In(time.Local)
 
-					} else if strings.HasSuffix(lowerName, ".mp3") {
-						selection.ReplaceWithHtml(`<audio src="` + relativeResourcePath + fi.Name() + `" />`)
-					} else {
-						selection.ReplaceWithHtml(`<a href="` + relativeResourcePath + fi.Name() + `">` + strings.Split(fi.Name(), "-")[1] + "</a>")
-					}
-					break
-				}
+		html, err := replaceEvernoteTags(cachedNote.Content, &resourceFiles, &resourcesDirName)
+		if err != nil {
+			return errors.Wrapf(err, "can't replace evernote tags %v", cachedNotePath)
+		}
+		*html = gohtml.Format(*html)
+
+		fm := frontMatter{
+			Title:     *cachedNote.Title,
+			Layout:    "post",
+			Published: false,
+			Date:      created.Format("2006-01-02 15:04:05 -0700"),
+			Tags:      cachedNote.TagNames,
+		}
+
+		for i, tag := range fm.Tags {
+			if tag == "published" {
+				fm.Published = true
+				fm.Tags = append(fm.Tags[:i], fm.Tags[i+1:]...)
+				break
 			}
-		})
-		inNote, _ := doc.Find("en-note").Html()
-		formatted := gohtml.Format(inNote)
+		}
 
-		cachedNote.Content = &formatted
+		for i, tag := range fm.Tags {
+			if tag == "page" {
+				fm.Layout = "page"
+				fm.Tags = append(fm.Tags[:i], fm.Tags[i+1:]...)
+				break
+			}
+		}
 
-		note := noteForTemplate{
-			Active:            cachedNote.Active,
-			Attributes:        cachedNote.Attributes,
-			Content:           cachedNote.Content,
-			ContentHash:       cachedNote.ContentHash,
-			ContentLength:     cachedNote.ContentLength,
-			Created:           cachedNote.Created,
-			Deleted:           cachedNote.Deleted,
-			GUID:              cachedNote.GUID,
-			NotebookGuid:      cachedNote.NotebookGuid,
-			RawContent:        template.HTML(formatted),
-			Resources:         cachedNote.Resources,
-			TagGuids:          cachedNote.TagGuids,
-			TagNames:          cachedNote.TagNames,
-			Title:             cachedNote.Title,
-			Updated:           cachedNote.Updated,
-			UpdateSequenceNum: cachedNote.UpdateSequenceNum}
+		fmyaml, err := yaml.Marshal(fm)
+		if err != nil {
+			return errors.Wrap(err, "can't create front matter")
+		}
 
-		var url string
+		*html = "---\n" + string(fmyaml) + "---\n" + *html
+
+		var noteFileName string
 		if cachedNote.Attributes.SourceURL != nil && *cachedNote.Attributes.SourceURL != "" {
-			url = *cachedNote.Attributes.SourceURL
+			noteFileName = *cachedNote.Attributes.SourceURL
 		} else {
-			url = *cachedNote.Title
+			// TODO: need to sanitize title
+			noteFileName = *cachedNote.Title
 		}
 
-		notePath := config.PublicArticlePath + url + ".html"
-		note.RelativeURL = strings.Replace(config.PublicArticlePath, config.PublicPath, "", 1) + url + ".html"
-		notes = append(notes, note)
-
-		file, err := os.OpenFile(notePath, os.O_CREATE, os.ModePerm)
-		defer file.Close()
-		templateErr := htmlTmpl.ExecuteTemplate(file, "note", note)
-		if templateErr != nil {
-			fmt.Println("tempalte file error")
-			fmt.Println(templateErr)
+		var notePath string
+		if fm.Layout == "page" {
+			notePath = path.Join(jekyllRoot, noteFileName+".html")
+		} else {
+			notePath = path.Join(jekyllPostsDir, created.Format("2006-01-02")+"-"+noteFileName+".html")
 		}
 
-		os.RemoveAll(config.PublicResourcePath)
-		os.MkdirAll(config.PublicResourcePath, os.ModePerm)
-
-		resourceInfos, err := ioutil.ReadDir(config.ResourceCachePath)
-		if err != nil {
-			fmt.Println(err)
+		if err := ioutil.WriteFile(notePath, []byte(*html), os.ModePerm); err != nil {
+			return errors.Wrapf(err, "can't create note file %v", notePath)
 		}
 
-		for _, resourceInfo := range resourceInfos {
-			sourcePath := config.ResourceCachePath + resourceInfo.Name()
-			source, err := os.OpenFile(sourcePath, os.O_RDONLY, os.ModePerm)
-			if err != nil {
-				fmt.Println(err)
-			}
-
-			destPath := config.PublicResourcePath + resourceInfo.Name()
-			dest, err := os.OpenFile(destPath, os.O_CREATE, os.ModePerm)
-			if err != nil {
-				fmt.Println(err)
-			}
-
-			_, copyErr := io.Copy(dest, source)
-			if copyErr != nil {
-				fmt.Println(copyErr)
-			}
+		for _, resourceFile := range resourceFiles {
+			copyResourceFile(resourceCacheDir, jekyllResourcesDir, resourceFile.Name())
 		}
 	}
 
-	sort.Sort(notes)
+	return nil
+}
 
-	for pageIdx := 0; pageIdx*config.NotesPerPage < len(notes); pageIdx++ {
-		page := pageForTemplate{
-			HasPrevious: pageIdx > 0,
-			HasNext:     (pageIdx+1)*config.NotesPerPage < len(notes),
-			PageNumber:  pageIdx + 1,
+func createDestinations(needClean bool, jekyllPostsDir *string, jekyllResourcesDir *string) {
+	if needClean {
+		os.RemoveAll(*jekyllPostsDir)
+		os.RemoveAll(*jekyllResourcesDir)
+	}
+
+	os.MkdirAll(*jekyllPostsDir, os.ModePerm)
+	os.MkdirAll(*jekyllResourcesDir, os.ModePerm)
+}
+
+func replaceEvernoteTags(enml *string, resourceFiles *[]os.FileInfo, jekyllResourcesDirName *string) (*string, error) {
+	reader := bytes.NewReader([]byte(*enml))
+	doc, _ := goquery.NewDocumentFromReader(reader)
+
+	doc.Find("en-todo").Each(func(_ int, todo *goquery.Selection) {
+		if _, exists := todo.Attr("checked"); exists {
+			todo.ReplaceWithHtml(`<input type="checkbox" checked="checked"/>`)
+		} else {
+			todo.ReplaceWithHtml(`<input type="checkbox"/>`)
 		}
+	})
 
-		if page.HasPrevious {
-			if page.PageNumber == 2 {
-				page.PreviousURL = ""
+	doc.Find("en-media").Each(func(i int, selection *goquery.Selection) {
+		hash, _ := selection.Attr("hash")
+		found := false
+		for _, resourceFile := range *resourceFiles {
+			if !strings.HasPrefix(resourceFile.Name(), hash) {
+				continue
+			}
+
+			found = true
+			lowerName := strings.ToLower(resourceFile.Name())
+			url := "{{ site.baseurl }}/" + path.Join(*jekyllResourcesDirName, resourceFile.Name())
+
+			if strings.HasSuffix(lowerName, ".png") || strings.HasSuffix(lowerName, ".jpg") || strings.HasSuffix(lowerName, ".gif") {
+				selection.ReplaceWithHtml(fmt.Sprintf(`<img src="%v" />`, url))
+			} else if strings.HasSuffix(lowerName, ".mp3") {
+				selection.ReplaceWithHtml(fmt.Sprintf(`<audio src="%v" />`, url))
+			} else if strings.HasSuffix(lowerName, ".mp4") {
+				selection.ReplaceWithHtml(fmt.Sprintf(`<video src="%v" />`, url))
 			} else {
-				page.PreviousURL = strconv.Itoa(page.PageNumber-1) + ".html"
+				selection.ReplaceWithHtml(fmt.Sprintf(`<a src="%v" />`, url))
 			}
 		}
 
-		if page.HasNext {
-			page.NextURL = strconv.Itoa(page.PageNumber+1) + ".html"
+		if !found {
+			fmt.Printf("can't find resource %v\n", hash)
 		}
+	})
 
-		initialNoteIndexOnPage := pageIdx * config.NotesPerPage
-		finalNoteIndexOnPage := (pageIdx + 1*config.NotesPerPage)
-		if finalNoteIndexOnPage > len(notes) {
-			finalNoteIndexOnPage = len(notes)
-		}
+	innerNoteHTML, _ := doc.Find("en-note").Html()
+	return &innerNoteHTML, nil
+}
 
-		for _, note := range notes[initialNoteIndexOnPage:finalNoteIndexOnPage] {
-			page.Notes = append(page.Notes, note)
-		}
-
-		htmlTmpl, _ := template.ParseFiles("template/home.html")
-		pagePath := config.PublicPath
-		if page.PageNumber == 1 {
-			pagePath += "index.html"
-		} else {
-			pagePath += strconv.Itoa(page.PageNumber) + ".html"
-		}
-		file, err := os.OpenFile(pagePath, os.O_CREATE, os.ModePerm)
-		if err != nil {
-			fmt.Println(err)
-		}
-		defer file.Close()
-
-		templateErr := htmlTmpl.ExecuteTemplate(file, "home", page)
-		if templateErr != nil {
-			fmt.Println("tempalte file error")
-			fmt.Println(templateErr)
-		}
+func copyResourceFile(from string, to string, fileName string) error {
+	sourcePath := path.Join(from, fileName)
+	source, err := os.OpenFile(sourcePath, os.O_RDONLY, os.ModePerm)
+	if err != nil {
+		return errors.Wrapf(err, "can't open resource cache file %v", sourcePath)
 	}
+	defer source.Close()
+
+	destPath := path.Join(to, fileName)
+	dest, err := os.OpenFile(destPath, os.O_CREATE, os.ModePerm)
+	if err != nil {
+		return errors.Wrapf(err, "can't create resource file %v", sourcePath)
+	}
+	defer dest.Close()
+
+	if _, err := io.Copy(dest, source); err != nil {
+		return errors.Wrapf(err, "can't copy resource file %v", sourcePath)
+	}
+
+	return nil
 }
