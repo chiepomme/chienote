@@ -268,7 +268,7 @@ func saveResources(resourceCacheDir *string, cachedNote *types.Note, receivedNot
 				return errors.Wrapf(err, "can't get resource %v", *resource.Attributes.FileName)
 			}
 
-			p := path.Join(*resourceCacheDir, hex.EncodeToString(resource.Data.BodyHash)+"-"+*resourceWithBytes.Attributes.FileName)
+			p := path.Join(*resourceCacheDir, hex.EncodeToString(resourceWithBytes.Data.BodyHash)+"-"+*resourceWithBytes.Attributes.FileName)
 			ioutil.WriteFile(p, resourceWithBytes.Data.Body, os.ModePerm)
 			fmt.Println("write resource to " + p)
 		} else {
