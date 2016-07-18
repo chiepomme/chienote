@@ -268,7 +268,32 @@ func saveResources(resourceCacheDir *string, cachedNote *types.Note, receivedNot
 				return errors.Wrapf(err, "can't get resource %v", *resource.Attributes.FileName)
 			}
 
-			p := path.Join(*resourceCacheDir, hex.EncodeToString(resourceWithBytes.Data.BodyHash)+"-"+*resourceWithBytes.Attributes.FileName)
+			var resourceFileName string
+			if resourceWithBytes.Attributes.FileName == nil {
+				// https://dev.evernote.com/doc/articles/resources.php#downloading
+				var extension string
+				switch *resourceWithBytes.Mime {
+				case "image/gif":
+					extension = ".gif"
+				case "image/jpeg":
+					extension = ".jpg"
+				case "image/png":
+					extension = ".png"
+				case "audio/wav":
+					extension = ".wav"
+				case "audio/mpeg":
+					extension = ".mp3"
+				case "audio/amr":
+					extension = ".amr"
+				case "audio/pdf":
+					extension = ".pdf"
+				}
+				resourceFileName = hex.EncodeToString(resourceWithBytes.Data.BodyHash) + extension
+			} else {
+				resourceFileName = hex.EncodeToString(resourceWithBytes.Data.BodyHash) + "-" + *resourceWithBytes.Attributes.FileName
+			}
+
+			p := path.Join(*resourceCacheDir, resourceFileName)
 			ioutil.WriteFile(p, resourceWithBytes.Data.Body, os.ModePerm)
 			fmt.Println("write resource to " + p)
 		} else {
