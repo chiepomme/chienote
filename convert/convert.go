@@ -65,6 +65,7 @@ func Convert(cacheRoot string, noteCacheDirName string, resourceCacheDirName str
 		if err != nil {
 			return errors.Wrapf(err, "can't replace evernote tags %v", cachedNotePath)
 		}
+		*html = strings.Replace(*html, "\u00a0", "\x20", -1)
 		*html = gohtml.Format(*html)
 
 		fm := frontMatter{
@@ -146,6 +147,31 @@ func replaceEvernoteTags(enml *string, resourceFiles *[]os.FileInfo, jekyllResou
 			todo.ReplaceWithHtml(`<input type="checkbox"/>`)
 		}
 	})
+
+	for {
+		codeOpen := doc.Find("div:contains(\\`\\`\\`)").First()
+		if len(codeOpen.Nodes) == 0 {
+			break
+		}
+		codeClose := codeOpen.NextAllFiltered("div:contains(\\`\\`\\`)").First()
+
+		if len(codeClose.Nodes) == 0 {
+			return nil, errors.Errorf("can't find code block end")
+		}
+
+		language := strings.Replace(codeOpen.Text(), "```", "", 1)
+		codeLines := make([]string, 0, 10)
+		codeLines = append(codeLines, `<div>{% highlight `+language+` %}`)
+
+		codeOpen.NextUntilSelection(codeClose).Each(func(_ int, line *goquery.Selection) {
+			codeLines = append(codeLines, line.Text())
+			line.Remove()
+		})
+
+		codeLines = append(codeLines, `{% endhighlight %}</div>`)
+		codeOpen.ReplaceWithHtml(strings.Join(codeLines, "\n"))
+		codeClose.Remove()
+	}
 
 	doc.Find("en-media").Each(func(i int, selection *goquery.Selection) {
 		hash, _ := selection.Attr("hash")
