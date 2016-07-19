@@ -217,7 +217,8 @@ func readCachedNoteFile(noteCachePath *string) (*types.Note, error) {
 	return cachedNote, nil
 }
 
-func readCachedNote(noteCachePath *string, noteGUID *types.GUID) (cachedNote *types.Note, err error) {
+func readCachedNote(noteCachePath *string, noteGUID *types.GUID) (*types.Note, error) {
+	var cachedNote *types.Note
 	if _, err := os.Stat(*noteCachePath); err == nil {
 		cachedNote, err = readCachedNoteFile(noteCachePath)
 		if err != nil {
