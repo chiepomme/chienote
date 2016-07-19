@@ -266,7 +266,7 @@ func saveResources(resourceCacheDir *string, cachedNote *types.Note, receivedNot
 		if fetchingNeeded {
 			resourceWithBytes, err := ns.GetResource(*developerToken, *resource.GUID, true, false, true, false)
 			if err != nil {
-				return errors.Wrapf(err, "can't get resource %v", *resource.Attributes.FileName)
+				return errors.Wrapf(err, "can't get resource %v", *resource.GUID)
 			}
 
 			var resourceFileName string
@@ -298,7 +298,7 @@ func saveResources(resourceCacheDir *string, cachedNote *types.Note, receivedNot
 			ioutil.WriteFile(p, resourceWithBytes.Data.Body, os.ModePerm)
 			fmt.Println("write resource to " + p)
 		} else {
-			fmt.Printf("not updated %v\n", *resource.Attributes.FileName)
+			fmt.Printf("not updated %v\n", *resource.GUID)
 		}
 	}
 
