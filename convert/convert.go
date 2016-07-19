@@ -137,6 +137,12 @@ func createDestinations(needClean bool, jekyllPostsDir *string, jekyllResourcesD
 }
 
 func replaceEvernoteTags(enml *string, resourceFiles *[]os.FileInfo, jekyllResourcesDirName *string) (*string, error) {
+	// FIXME
+	// standard library's html parser can't handle unknown self closing tags
+	// https://github.com/golang/net/blob/master/html/parse.go#L727-L980
+	// so replace en-medias to imgs to parse them
+	*enml = strings.Replace(*enml, "<en-media", `<img en-media="true"`, -1)
+
 	reader := bytes.NewReader([]byte(*enml))
 	doc, _ := goquery.NewDocumentFromReader(reader)
 
@@ -188,7 +194,7 @@ func replaceEvernoteTags(enml *string, resourceFiles *[]os.FileInfo, jekyllResou
 		}
 	})
 
-	doc.Find("en-media").Each(func(i int, selection *goquery.Selection) {
+	doc.Find("img[en-media]").Each(func(i int, selection *goquery.Selection) {
 		hash, _ := selection.Attr("hash")
 		found := false
 		for _, resourceFile := range *resourceFiles {
