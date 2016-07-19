@@ -79,7 +79,7 @@ func Sync(cacheRoot string, noteCacheDirName string, resourceCacheDirName string
 			return errors.Wrapf(err, "can't read cached note")
 		}
 
-		if cachedNote == nil || *cachedNote.UpdateSequenceNum != *note.UpdateSequenceNum {
+		if cachedNote == nil || cachedNote.UpdateSequenceNum == nil || note.UpdateSequenceNum == nil || *cachedNote.UpdateSequenceNum != *note.UpdateSequenceNum {
 			note, err := ns.GetNote(developerToken, note.GUID, true, false, false, false)
 			if err != nil {
 				return errors.Wrapf(err, "can't get note %v", *note.GUID)
