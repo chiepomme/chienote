@@ -65,7 +65,7 @@ func Convert(cacheRoot string, noteCacheDirName string, resourceCacheDirName str
 		if err != nil {
 			return errors.Wrapf(err, "can't replace evernote tags %v", cachedNotePath)
 		}
-		*html = strings.Replace(*html, "\u00a0", "\x20", -1)
+		*html = strings.Replace(*html, "\u00a0", " ", -1)
 		*html = gohtml.Format(*html)
 
 		fm := frontMatter{
@@ -180,7 +180,7 @@ func replaceEvernoteTags(enml *string, resourceFiles *[]os.FileInfo, jekyllResou
 	}
 
 	doc.Find(`div:contains("#")`).Each(func(_ int, div *goquery.Selection) {
-		line := div.Text()
+		line := strings.Replace(div.Text(), "\u00a0", " ", -1)
 		if strings.HasPrefix(line, "##### ") {
 			div.ReplaceWithHtml("<h5>" + strings.Replace(line, "##### ", "", 1))
 		} else if strings.HasPrefix(line, "#### ") {
