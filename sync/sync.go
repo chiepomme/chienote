@@ -174,6 +174,8 @@ func findMetadatas(ns *notestore.NoteStoreClient, bookGUID *types.GUID, develope
 	filter := &notestore.NoteFilter{NotebookGuid: bookGUID, Ascending: &ascending}
 
 	var resultSpec notestore.NotesMetadataResultSpec
+	includeUpdateSequenceNum := true
+	resultSpec.IncludeUpdateSequenceNum = &includeUpdateSequenceNum
 	metadatas, err = ns.FindNotesMetadata(*developerToken, filter, 0, 1000, &resultSpec)
 	if err != nil {
 		return nil, errors.Wrap(err, "couldn't find notes")
